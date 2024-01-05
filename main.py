@@ -35,13 +35,19 @@ def generate_post_content(choice, link, text, event):
         Generate a post fully in Ukrainian based on this article {link_text}.
         Here is the article:
          ```{text}```
-        Use these rules for the post:
-            - Emphasize the city name with leading emojis.
-            - Clearly state the event name.
-            - Include the date and time of the event.
-            - Mention the venue name and address (if the 'link' choice is selected, include the provided link).
-            - If a ticket link is available and 'link' choice is selected, include it in the post.
-            - The main text of the post should describe the event, following the principles of the provided 'main text' template.
+        Шаблон для подій:
+
+        ​​🏤🏤🏤#МІСТО
+        
+        📢назва заходу
+        
+        🗓️20 січня ⏰16:30
+        📍Назва закладу (якщо є)
+        32 Gasthuisstraat 2011 XP Haarlem
+        
+        🎫 квитки за посиланням
+        
+        Інформація про подію за принципом пункт 3 «основний текст»
         '''
     else:
         # Generating general post content
