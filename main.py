@@ -1,156 +1,88 @@
-import asyncio
-from aiogram import Bot, types
-from aiogram.dispatcher import Dispatcher
-from aiogram.utils import executor
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.dispatcher.filters import Text
-from langchain.document_loaders import NewsURLLoader
-import re
-import os
+import logging
+import pandas as pd
+from aiogram import Bot, Dispatcher, types
 
-# Configure bot and dispatcher
-bot = Bot(token='6799661102:AAFPZS-sYon5h1XGymwILNV00Xhy4BabbSc')
+# Ensure you have openpyxl installed for Excel operations
+# pip install openpyxl
+
+logging.basicConfig(level=logging.INFO)
+
+# Replace with your actual bot token
+bot_token = "6849178402:AAHTbdlUObF1boJZrkmVryZjLtUYtvmogtA"
+bot = Bot(token=bot_token)
 dp = Dispatcher(bot)
 
-# Save data for each user
-data = {}
+promos = pd.read_csv('promos.csv')
 
-# Define the emojis pattern
-emoji_pattern = r"[\U0001F600-\U0001F64F]+"
+# Create an empty DataFrame to store user data
+columns = ['user_id', 'phone_number', 'full_name', 'address', 'promo_code', 'promo_code_used']
+user_data_df = pd.DataFrame(columns=columns)
 
-def split_message(text, max_length=4096):
-    """
-    Splits a long text into parts, each with a maximum specified length.
-    """
-    return [text[i:i+max_length] for i in range(0, len(text), max_length)]
+# Excel file to store user data
+excel_file_path = 'user_data.xlsx'
 
-def generate_post_content(choice, link, text, event):
-    """
-    Generates the content of the post based on user choices.
-    """
-    link_text = f'(Link - {link})' if choice == "link" else ''
-    if event:
-        # Generating event post content
-        return f'''
-        Generate a post fully in Ukrainian based on this article {link_text}.
-        Here is the article:
-         ```{text}```
-        Шаблон для подій:
+# Function to save user data to Excel file
+def save_to_excel():
+    user_data_df.to_excel(excel_file_path, index=False)
 
-        ​​🏤🏤🏤#МІСТО
-        
-        *назва події жирним шрифтом
+# Load existing user data from Excel file if it exists
+try:
+    user_data_df = pd.read_excel(excel_file_path)
+except (FileNotFoundError, pd.errors.EmptyDataError, ValueError):
+    user_data_df = pd.DataFrame(columns=columns)
+    save_to_excel()
 
-        🗓️*дата *назва місяця ⏰*години проведення
-        📍*адреса у вигляді гіперпосилання на googlemap
-        
-        🎫 квитки за посилання *гіпеопосилання на лінк з квитками *текст жиний
-        
-        *Опис події
-        '''
-    else:
-        # Generating general post content
-        return f'''
-            Generate markdown text for post post fully in Ukrainian based on this article {link_text}.
-            Here is the article:
-            ```{text}```
-            Use these rules:
-                Headline:
-                    1. The title should convey the main idea of the post. (Maximum 5-10 words)
-                    2. It is always bold(**).
-                    3. 1-2 thematic emojis are always used at the beginning of the title.
-                    4. A period is always placed at the end of the title.
-                    5. The title should be in the very beginning of the post.
-
-                Introduction:
-                    1. There is always a blank line after the title.
-                    2. Then there can be 1-2 sentences that mention an interesting fact from the material.
-                    3. This text is written in italics, and emojis are not used.
-
-                Main Text:
-                    1. This is a maximum of 200-300 characters.
-                    2. The text can be divided into 2-3 paragraphs.
-                    3. Important parts of the text and words are ALWAYS highlighted in bold(**).
-                    4. Thematic emojis are mandatory in the text. (6 emojis per paragraph)
-                    5. At the end of a sentence, if there is an emoji, a period is not placed. Correct: "...the end✊". Incorrect: "...the end.✊".
-                    6. If a list of something is enumerated, square emojis ▪️ are used in the beginning. Incorrect: "1. The beginning". Correct: "▪️The beginning".
-                    7. The text never uses quotes “”, but instead uses «».
-                    8. A period is always placed at the end of the main text.
-                Source Reference:
-                    ▪️source + link
-            '''
-
-# Menu buttons
-text_button = InlineKeyboardButton('📝 Текст', callback_data='text')
-link_button = InlineKeyboardButton('🔗 Посилання', callback_data='link')
-emojis_button = InlineKeyboardButton('✨ З емодзі', callback_data='emojis')
-no_emojis_button = InlineKeyboardButton('🚫 Без емодзі', callback_data='no_emojis')
-event_button = InlineKeyboardButton('🎉 Подія', callback_data='event')
-no_event_button = InlineKeyboardButton('🚫 Без події', callback_data='no_event')
-
-# Start function with personalized greeting
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
-    user_name = message.from_user.first_name or "там"
-    keyboard_markup = InlineKeyboardMarkup().add(text_button, link_button)
-    await message.reply(f'Привіт, {user_name}!')
-    await bot.send_message(message.from_user.id, f'🌟 Виберіть, як ви хочете ввести інформацію для публікації:', reply_markup=keyboard_markup)
+    markup = types.ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                types.KeyboardButton(text="Поділитися телефоном", request_contact=True),
+            ],
+        ],
+        resize_keyboard=True,
+    )
+    await message.reply("Вас вітає компанія Global Trade UA! 🌍🛍️\nДля отримання персонального промо-коду на знижку 50% в нашому інтернет-магазині вкажіть контактну інформацію. 📱⬇", reply_markup=markup)
 
-# Handler for text or link input
-@dp.callback_query_handler(lambda callback_query: callback_query.data in ('text', 'link'))
-async def get_input_type(callback_query: types.CallbackQuery):
-    await bot.delete_message(callback_query.from_user.id, callback_query.message.message_id)
-    data[callback_query.from_user.id] = {'input_type': callback_query.data}
-    keyboard_markup = InlineKeyboardMarkup().add(emojis_button, no_emojis_button)
-    await bot.send_message(callback_query.from_user.id, 'Будуть емодзі в публікації?', reply_markup=keyboard_markup)
-
-# Handler for emojis selection
-@dp.callback_query_handler(lambda callback_query: callback_query.data in ('emojis', 'no_emojis'))
-async def get_emojis(callback_query: types.CallbackQuery):
-    await bot.delete_message(callback_query.from_user.id, callback_query.message.message_id)
-    data[callback_query.from_user.id]['emojis'] = (callback_query.data == 'emojis')
-    keyboard_markup = InlineKeyboardMarkup().add(event_button, no_event_button)
-    await bot.send_message(callback_query.from_user.id, 'Буде подія в публікації?', reply_markup=keyboard_markup)
-
-# Handler for event selection
-@dp.callback_query_handler(lambda callback_query: callback_query.data in ('event', 'no_event'))
-async def get_event(callback_query: types.CallbackQuery):
-    await bot.delete_message(callback_query.from_user.id, callback_query.message.message_id)
-    data[callback_query.from_user.id]['event'] = (callback_query.data == 'event')
-    input_type = 'текст' if data[callback_query.from_user.id]['input_type'] == 'text' else 'посилання'
-    await bot.send_message(callback_query.from_user.id, f'Введіть {input_type} для публікації:')
-
-# Handler for receiving the publication text or link
-@dp.message_handler(lambda message: message.text)
-async def get_text_for_publication(message: types.Message):
-    user_data = data[message.from_user.id]
-    if user_data['input_type'] == 'text':
-        user_data['text'] = message.text
-        user_data['link'] = ''
+@dp.message_handler(content_types=types.ContentTypes.CONTACT)
+async def process_contact(message: types.Message):
+    user_id = message.chat.id
+    phone_number = message.contact.phone_number
+    if phone_number not in user_data_df['phone_number'].values:
+        user_data_df.loc[user_id, 'user_id'] = user_id
+        user_data_df.loc[user_id, 'phone_number'] = phone_number
+        save_to_excel()
+        await message.reply("Дякуємо! Тепер вкажіть, будь ласка, ваше Прізвище Ім’я По-батькові. 📝⬇", reply_markup=types.ReplyKeyboardRemove())
     else:
-        user_data['link'] = message.text
-        try:
-            loader = NewsURLLoader(urls=[user_data['link']])
-            article = loader.load()
-            user_data['text'] = article[0].page_content
+        await message.reply("Ви вже зареєстровані", reply_markup=types.ReplyKeyboardRemove())
 
-        except Exception as e:
-            print(e)
-            await bot.send_message(message.from_user.id, 'Помилка при завантаженні даних. Перевірте правильність посилання.')
-            return
-    output = generate_post_content(user_data['input_type'], user_data['link'], user_data['text'], user_data['event'])
-    data[message.from_user.id]['output'] = output
-    if not user_data['emojis']:
-        output = re.sub(emoji_pattern, '', output)
+@dp.message_handler(content_types=types.ContentTypes.TEXT)
+async def process_text(message: types.Message):
+    user_id = message.chat.id
 
-    await bot.send_message(message.from_user.id, 'Ось ваша публікація:')
-    if len(output) > 4096:
-        parts = split_message(output)
-        for part in parts:
-            await bot.send_message(message.from_user.id, part)
+    # Check if the user has provided a full name
+    if 'full_name' not in user_data_df.columns or pd.isna(user_data_df.loc[user_id, 'full_name']):
+        name = message.text
+        user_data_df.loc[user_id, 'full_name'] = name
+        save_to_excel()
+        await message.reply("Дякуємо! Тепер вкажіть адресу магазину у форматі вулиця, місто, область. 🏠⬇")
     else:
-        await bot.send_message(message.from_user.id, output)
+        # Check if the user has provided an address
+        if 'address' not in user_data_df.columns or pd.isna(user_data_df.loc[user_id, 'address']):
+            address = message.text
+            user_data_df.loc[user_id, 'address'] = address
 
-# Run the bot
+            # Generate and send promo code
+            promo_code = promos[promos['Used'] != None].sample()['Promo'].values[0]
+            promos.loc[promos['Promo'] == promo_code, 'Used'] = '+'
+            promos.to_csv('promos.csv', index=False)
+            user_data_df.loc[user_id, 'promo_code'] = promo_code
+            save_to_excel()
+
+            await message.reply(f"Ваш промо-код: {promo_code}")
+        else:
+            await message.reply("Ви вже вказали адресу. Чекаємо на ваше замовлення!")
+
 if __name__ == '__main__':
+    from aiogram import executor
     executor.start_polling(dp, skip_updates=True)
