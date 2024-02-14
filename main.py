@@ -1,4 +1,3 @@
-
 import asyncio
 import markdown
 from aiogram import Bot, types
@@ -14,6 +13,7 @@ import pandas as pd
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 
+os.environ['OPENAI_API_KEY'] = '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'
 llm = ChatOpenAI(model_name='gpt-4-0125-preview', temperature=0.7, openai_api_key = os.environ['OPENAI_API_KEY'],max_tokens=1000)
 
 CSV_FILE_PATH = 'allowed_users.csv'
@@ -138,9 +138,8 @@ event_button = InlineKeyboardButton('🎉 Подія', callback_data='event')
 
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
-    if not is_user_allowed(message.from_user.username) or message.from_user.username == 'ukraine_nl':
+    if (not is_user_allowed(message.from_user.username)) and message.from_user.username != 'ukraine_nl':
         await message.reply("You do not have permission to use this bot.")
-        return
     keyboard_markup = InlineKeyboardMarkup().add( no_event_button,event_button)
     await message.reply("Welcome! You have permission to use this bot.")
     if message.from_user.username == 'ukraine_nl':
@@ -228,6 +227,7 @@ async def get_text_for_publication(message: types.Message):
 
     await bot.send_message(message.from_user.id, 'Ось ваша публікація:')
     response = generate_with_gpt3(output) + f'\n\n▪️ [джерело]({user_data["link"]})'
+    
     response = response.replace('**','*')
     await bot.send_message(message.from_user.id, response, parse_mode='Markdown')
 
