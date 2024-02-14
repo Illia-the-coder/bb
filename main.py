@@ -13,7 +13,7 @@ import pandas as pd
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 
-os.environ['OPENAI_API_KEY'] = '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'
+
 llm = ChatOpenAI(model_name='gpt-4-0125-preview', temperature=0.7, openai_api_key = os.environ['OPENAI_API_KEY'],max_tokens=1000)
 
 CSV_FILE_PATH = 'allowed_users.csv'
